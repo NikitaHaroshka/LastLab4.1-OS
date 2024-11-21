@@ -6,31 +6,31 @@ using namespace std;
 
 int main(int argc, char* argv[])
 {
-    HANDLE hEvent = OpenEvent(EVENT_ALL_ACCESS, FALSE, L"SyncEvent");
-    HANDLE hFull = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, L"FullSemaphore");
-    HANDLE hEmpty = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, L"EmptySemaphore");
+    HANDLE Event = OpenEvent(EVENT_ALL_ACCESS, FALSE, L"SyncEvent");
+    HANDLE Ready = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, L"FullSemaphore");
+    HANDLE NotReady = OpenSemaphore(SEMAPHORE_ALL_ACCESS, FALSE, L"EmptySemaphore");
 
-    if (hEvent == NULL || hFull == NULL || hEmpty == NULL) {
+    if (Event == NULL || Ready == NULL || NotReady == NULL) {
         cout << "Error opening synchronization objects." << endl;
         return GetLastError();
     }
 
-    string ans;
+    string inputs;
     while (true) {
         cout << "Type your operation:" << endl;
-        cin >> ans;
+        cin >> inputs;
 
-        if (ans == "exit") break;
+        if (inputs == "exit") break;
         else {
-            WaitForSingleObject(hEmpty, INFINITE);
-            WaitForSingleObject(hEvent, INFINITE); // Ожидание события
+            WaitForSingleObject(NotReady, INFINITE);
+            WaitForSingleObject(Event, INFINITE);
 
             ofstream out(argv[1], ios::app, ios::binary);
-            out.write(ans.data(), 20);
+            out.write(inputs.data(), 20);
             out.close();
 
-            SetEvent(hEvent); // Устанавливаем событие
-            ReleaseSemaphore(hFull, 1, NULL);
+            SetEvent(Event);
+            ReleaseSemaphore(Ready, 1, NULL);
         }
     }
     return 0;

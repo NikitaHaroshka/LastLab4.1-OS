@@ -7,114 +7,108 @@ using namespace std;
 
 int main()
 {
-    HANDLE hFull, hEmpty, hEvent;
+    HANDLE Ready, NotReady, Event;
     STARTUPINFO* si;
     PROCESS_INFORMATION* pi;
-    wchar_t fileName[50];
+    int NumWord, SendNum;
+    wchar_t file[50];
+    wstring files;
+    cout << "Enter file name: " << endl;
+    wcin >> files;
+    cout << "Enter number of words: " << endl;
+    wcin >>NumWord;
 
-    wstring fileN;
-    int recNum, receiverNum;
-    cout << "Print file name and number of records: " << endl;
-    wcin >> fileN >> recNum;
-    if (recNum < 1) {
-        cout << "Incorrect number of records.";
-        return 1;
-    }
-    wstring s = L"Sender.exe " + fileN;
-    lstrcpyW(fileName, s.data());
+    wstring s = L"Sender.exe " + files;
+    lstrcpyW(file, s.data());
 
-    ofstream createBinFile(fileN, ios::binary);
+    ofstream createBinFile(files, ios::binary);
     createBinFile.close();
 
-    // Создаем события
-    hEvent = CreateEvent(NULL, FALSE, TRUE, L"SyncEvent");  // Автоматически сбрасываемое событие
-    hFull = CreateSemaphore(NULL, 0, recNum, L"FullSemaphore");
-    hEmpty = CreateSemaphore(NULL, recNum, recNum, L"EmptySemaphore");
+    Event = CreateEvent(NULL, FALSE, TRUE, L"SyncEvent");
+    Ready = CreateSemaphore(NULL, 0, NumWord, L"FullSemaphore");
+    NotReady = CreateSemaphore(NULL, NumWord, NumWord, L"EmptySemaphore");
 
-    if (hEvent == NULL || hFull == NULL || hEmpty == NULL) {
-        cout << "Error creating synchronization objects." << endl;
+    if (Event == NULL || Ready == NULL || NotReady == NULL) {
+        cout << "Error." << endl;
         return GetLastError();
     }
 
-    cout << "Print number of receivers: " << endl;
-    cin >> receiverNum;
-    if (receiverNum < 1) {
-        cout << "Incorrect number of receivers.";
-        return 1;
-    }
+    cout << "Enter number of senders: " << endl;
+    cin >> SendNum;
 
-    si = new STARTUPINFO[receiverNum];
-    pi = new PROCESS_INFORMATION[receiverNum];
-    HANDLE* hProcessors = new HANDLE[receiverNum];
-    ZeroMemory(si, sizeof(STARTUPINFO) * receiverNum);
-    for (int i = 0; i < receiverNum; i++) {
+    si = new STARTUPINFO[SendNum];
+    pi = new PROCESS_INFORMATION[SendNum];
+    HANDLE* Processors = new HANDLE[SendNum];
+    ZeroMemory(si, sizeof(STARTUPINFO) * SendNum);
+    for (int i = 0; i < SendNum; i++) {
         si[i].cb = sizeof(STARTUPINFO);
-        if (!CreateProcess(NULL, fileName, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si[i], &pi[i])) {
+        if (!CreateProcess(NULL, file, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si[i], &pi[i])) {
             cout << "Process " << i << " error";
             return GetLastError();
         }
-        hProcessors[i] = pi->hProcess;
+        Processors[i] = pi->hProcess;
     }
-    Sleep(100);
 
-    if (receiverNum == 1)
-        WaitForSingleObject(&hProcessors, INFINITE);
+    if (SendNum == 1)
+        WaitForSingleObject(&Processors, INFINITE);
     else
-        WaitForMultipleObjects(receiverNum, hProcessors, TRUE, INFINITE);
+        WaitForMultipleObjects(SendNum, Processors, TRUE, INFINITE);
 
-    ifstream inBinFile;
-    ofstream outBinFile;
-    string userAns;
-    char* fileElem = new char[20];
-    string deleting;
+    char* Wordn = new char[20];
+    ifstream inbin;
+    ofstream outbin;
+    string consolein;
+    string delet;
 
     while (true) {
-        cout << "type your operation (exit, read):" << endl;
-        cin >> userAns;
+        cout << "Enter operation (read/exit):" << endl;
+        cin >> consolein;
 
-        if (userAns == "read") {
-            WaitForSingleObject(hFull, INFINITE);
-            WaitForSingleObject(hEvent, INFINITE); // Ожидание события
+        if (consolein == "read") {
+            WaitForSingleObject(Ready, INFINITE);
+            WaitForSingleObject(Event, INFINITE);
 
-            inBinFile.open(fileN, ios::binary);
-            inBinFile.read(fileElem, 20);
-            inBinFile >> deleting;
-            inBinFile.close();
+            inbin.open(files, ios::binary);
+            inbin.read(Wordn, 20);
+            inbin >> delet;
+            inbin.close();
 
-            if (strcmp(fileElem, deleting.data()) == 0)
-                deleting = "";
+            if (strcmp(Wordn, delet.data()) == 0)
+                delet = "";
 
-            outBinFile.open(fileN, ios::binary);
-            outBinFile.clear();
-            outBinFile.write(deleting.data(), deleting.size());
-            outBinFile.close();
+            outbin.open(files, ios::binary);
+            outbin.clear();
+            outbin.write(delet.data(), delet.size());
+            outbin.close();
 
-            cout << fileElem << endl;
+            cout << Wordn << endl;
 
-            SetEvent(hEvent); // Устанавливаем событие
-            ReleaseSemaphore(hEmpty, 1, NULL);
+            SetEvent(Event);
+            ReleaseSemaphore(NotReady, 1, NULL);
         }
-        if (userAns == "exit") {
-            for (int i = 0; i < receiverNum; i++) {
+        if (consolein == "exit") {
+            for (int i = 0; i < SendNum; i++) {
                 TerminateProcess(pi[i].hProcess, 1);
                 TerminateProcess(pi[i].hThread, 1);
             }
             break;
         }
-        if (userAns != "read" && userAns != "exit") {
+        if (consolein != "read" && consolein != "exit") {
             cout << "Wrong command." << endl;
         }
     }
 
-    WaitForMultipleObjects(receiverNum, &pi->hProcess, TRUE, INFINITE);
+    WaitForMultipleObjects(SendNum, &pi->hProcess, TRUE, INFINITE);
 
-    for (int i = 0; i < receiverNum; i++) {
+    for (int i = 0; i < SendNum; i++) {
         CloseHandle(pi[i].hThread);
         CloseHandle(pi[i].hProcess);
     }
 
-    CloseHandle(hEvent);
-    CloseHandle(hFull);
-    CloseHandle(hEmpty);
-    inBinFile.close();
+    CloseHandle(Event);
+    CloseHandle(Ready);
+    CloseHandle(NotReady);
+    inbin.close();
+    outbin.close();
+    return 0;
 }
